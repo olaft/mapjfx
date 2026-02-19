@@ -1,6 +1,7 @@
 package com.sothawo.mapjfx.browser;
 
 import javafx.application.Application;
+import javafx.concurrent.Worker;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -11,6 +12,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
+import netscape.javascript.JSObject;
 
 /**
  * @author P.J. Meisch (pj.meisch@sothawo.com).
@@ -34,6 +36,27 @@ public class Browser extends Application {
 
         webView = new WebView();
         webEngine = webView.getEngine();
+
+        // Configurar user agent moderno
+        webEngine.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+
+        // Inyectar polyfills para WebGL
+        webEngine.getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
+            if (newState == Worker.State.SUCCEEDED) {
+                webEngine.executeScript(
+                        "if (!window.WebGLRenderingContext) {" +
+                                "   console.log('WebGL no soportado');" +
+                                "}" +
+                                "// Polyfill para Float32Array si es necesario"
+                );
+            }
+        });
+
+        JSObject window = (JSObject) webEngine.executeScript("window");
+        boolean hasWebGL = (Boolean) webEngine.executeScript(
+                "!!document.createElement('canvas').getContext('webgl')"
+        );
+        System.out.println("WebGL soportado: " + hasWebGL);
 
         primaryStage.setTitle("Browser");
 

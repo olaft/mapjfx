@@ -39,7 +39,7 @@ import static java.util.Objects.*;
  *
  * @author P.J. Meisch (pj.meisch@sothawo.com).
  */
-public final class Marker extends MapCoordinateElement {
+public final class Marker<G> extends MapCoordinateElement {
 // ------------------------------ FIELDS ------------------------------
 
     private final static AtomicLong nextId = new AtomicLong(1);
@@ -47,6 +47,7 @@ public final class Marker extends MapCoordinateElement {
     private final String id;
     /** the image URL */
     private final URL imageURL;
+    private G item;
 
     /** the optional attached Label. */
     private Optional<MapLabel> optMapLabel = Optional.empty();
@@ -63,10 +64,10 @@ public final class Marker extends MapCoordinateElement {
      * @throws NullPointerException
      *     when provided is null
      */
-    public static Marker createProvided(Provided provided) {
+    public static <G> Marker<G> createProvided(Provided provided) {
         requireNonNull(provided);
-        return new Marker(Marker.class.getResource("/markers/" + provided.getFilename()), provided.getOffsetX(),
-            provided.getOffsetY());
+        return new Marker<>(Marker.class.getResource("/markers/" + provided.getFilename()), provided.getOffsetX(),
+                provided.getOffsetY());
     }
 
 // --------------------------- CONSTRUCTORS ---------------------------
@@ -102,7 +103,7 @@ public final class Marker extends MapCoordinateElement {
 // --------------------- GETTER / SETTER METHODS ---------------------
 
     @Override
-    public Marker setRotation(Integer rotation) {
+    public Marker<G> setRotation(Integer rotation) {
         super.setRotation(rotation);
         return this;
     }
@@ -123,7 +124,7 @@ public final class Marker extends MapCoordinateElement {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        Marker marker = (Marker) o;
+        Marker<G> marker = (Marker<G>) o;
 
         return id.equals(marker.id);
     }
@@ -152,7 +153,7 @@ public final class Marker extends MapCoordinateElement {
      * @throws NullPointerException
      *     of mapLabel is null
      */
-    public Marker attachLabel(MapLabel mapLabel) {
+    public Marker<G> attachLabel(MapLabel mapLabel) {
         optMapLabel = Optional.of(requireNonNull(mapLabel));
         mapLabel.setMarker(this);
         mapLabel.visibleProperty().bind(visibleProperty());
@@ -165,7 +166,7 @@ public final class Marker extends MapCoordinateElement {
      *
      * @return this object
      */
-    public Marker detachLabel() {
+    public Marker<G> detachLabel() {
         optMapLabel.ifPresent(mapLabel -> {
             mapLabel.setMarker(null);
             mapLabel.visibleProperty().unbind();
@@ -180,13 +181,21 @@ public final class Marker extends MapCoordinateElement {
     }
 
     @Override
-    public Marker setPosition(Coordinate position) {
+    public Marker<G> setPosition(Coordinate position) {
         return (Marker) super.setPosition(position);
     }
 
     @Override
-    public Marker setVisible(boolean visible) {
+    public Marker<G> setVisible(boolean visible) {
         return (Marker) super.setVisible(visible);
+    }
+
+    public G getItem() {
+        return item;
+    }
+
+    public void setItem(G item) {
+        this.item = item;
     }
 
 // -------------------------- ENUMERATIONS --------------------------
@@ -195,10 +204,17 @@ public final class Marker extends MapCoordinateElement {
      * provided Markers.
      */
     public enum Provided {
+
         BLUE("blue_map_marker.png", -32, -64),
         GREEN("green_map_marker.png", -32, -64),
         ORANGE("orange_map_marker.png", -32, -64),
-        RED("red_map_marker.png", -32, -64);
+        RED("red_map_marker.png", -32, -64),
+        ORANGE_HOME("orange_home.png", -16, -32),
+        BLUE_TREE("blue_tree.png", -16, -32),
+        GREEN_TREE("green_tree.png", -16, -32),
+        ORANGE_TREE("orange_tree.png", -16, -32),
+        RED_TREE("red_tree.png", -16, -32);
+
 
 // ------------------------------ FIELDS ------------------------------
 
@@ -231,5 +247,7 @@ public final class Marker extends MapCoordinateElement {
         public int getOffsetY() {
             return offsetY;
         }
+
+
     }
 }

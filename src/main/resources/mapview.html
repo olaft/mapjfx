@@ -22,60 +22,156 @@ Copyright 2015-2021 Peter-Josef Meisch (pj.meisch@sothawo.com)
         from the URI that is constructed with the base url and the appended path.
 -->
 <html>
-    <!-- opening head tag alone in a row -->
-    <head>
-        <meta charset="UTF-8">
-        <title>sothawo MapView</title>
-        <!--<link rel="stylesheet" href="ol/6.7.0/ol.css" type="text/css">-->
-        <!-- replaced by: -->
-        <style>
-            #ol/6.7.0/ol.css#
-        </style>
-        <style>
-            html, body { height: 100%; width: 100%; margin: 0;}
-            #map { height: 100%; width: 100%; background: #ccc;}
-            #markers { display: none; }
-        </style>
-        <!--<script src="ol/6.7.0/ol.js" type="text/javascript"></script>-->
-        <!-- replaced by: -->
-        <script type="text/javascript">
-            #elm-pep.js#
-            #polyfill.js#
-            #ol/6.7.0/ol.js#
-        </script>
-         <style>
-            #mapview.css#
-            #custom_mapview.css#
-         </style>
-    </head>
-    <body>
-        <div id="map" ondragstart="javascript: return false;"></div>
-        <div id="markers"></div>
-        <div id="labels"></div>
-        <!--<script src="projections.js" type="text/javascript"></script>-->
-        <!--<script src="MapObject.js" type="text/javascript"></script>-->
-        <!--<script src="WMSParams.js" type="text/javascript"></script>-->
-        <!--<script src="coordinateline.js" type="text/javascript"></script>-->
-        <!--<script src="mapcircle.js" type="text/javascript"></script>-->
-        <!--<script src="mapview.js" type="text/javascript"></script>-->
-        <!-- replaced by: -->
-        <script type="text/javascript">
-            #projections.js#
-            #MapObject.js#
-            #WMSParams.js#
-            #coordinateline.js#
-            #mapcircle.js#
-            #mapview.js#
+<!-- opening head tag alone in a row -->
+<head>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+        google.charts.load('current', {'packages': ['corechart']});
+        if (typeof drawChart !== 'undefined' && google.charts) {
+            google.charts.setOnLoadCallback(drawChart);
+        }
+    </script>
+    <meta charset="UTF-8">
+    <title>sothawo MapView</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.7.0/ol.css">
+    <!-- replaced by: -->
+    <style>
+        /*#ol/6.7.0/ol.css#*/
+    </style>
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+        }
 
-            // no browser context menu, markers and labels handle it separately, for the mapview itself
-            // it must be caught here as ol.Map has no context menu event.
-            document.getElementById('map').oncontextmenu = function (e) {
-                e = e ? e : window.event;
-                getJSMapView().contextmenu(e);
-                if (e.preventDefault) e.preventDefault(); // For non-IE browsers.
-                else return false; // For IE browsers.
-            };
-            </script>
+        #map {
+            height: 100%;
+            width: 100%;
+            background: #ccc;
+        }
 
-    </body>
+        #markers {
+            display: none;
+        }
+
+        .map .ol-rotate {
+            top: 3em;
+        }
+
+        .map {
+            width: 100%;
+            height: 100%;
+            float: left;
+        }
+
+        .fullscreen:-webkit-full-screen {
+            height: 100%;
+            margin: 0;
+        }
+
+        .fullscreen:fullscreen {
+            height: 100%;
+        }
+
+        .fullscreen {
+            margin-bottom: 10px;
+            width: 100%;
+            height: 100%;
+        }
+
+        p {
+            color: #000000;
+            font-size: 1em;
+            margin-top: 2px;
+            margin-bottom: 2px;
+        }
+
+        .card-header h3{
+            color: #FFFFFF;
+        }
+
+        #statusA{
+            color: #067006;
+        }
+
+        #statusB{
+            color: #970000;
+        }
+
+    </style>
+    <script src="ol/6.7.0/ol2.js" type="text/javascript"></script>
+    <script src="elm-pep.js" type="text/javascript"></script>
+    <script src="polyfill.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        // #elm-pep.js#
+        // #polyfill.js#
+        // #ol/6.7.0/ol.js#
+    </script>
+    <style>
+        #mapview.css#
+        #custom_mapview.css#
+    </style>
+    <link rel="stylesheet" href="card.css">
+</head>
+<body>
+
+
+<div id="fullscreen" class="fullscreen">
+    <!--<div class="controls">
+        <button id="addVectorLayer">Agregar Capa Vector</button>
+        <button id="addHeatmapLayer">Agregar Capa Heatmap</button>
+        <button id="clearLayers">Limpiar Capas</button>
+        <span style="margin-left: auto;">Mapa con OpenLayers</span>
+    </div>-->
+    <div id="map" class="map" ondragstart="javascript: return false;"></div>
+    <div id="card-wrap" class="card-wrap">
+        <div id="cardHeader" class="card-header three">
+            <i class="fas fa-code"></i>
+            <span>Card Header</span>
+        </div>
+        <div id="card-content" class="card-content">
+            <H3 id="statusA">Card Content</H3>
+
+        </div>
+        <div id="piechart" style="width: 100%; height: 300px;"></div>
+    </div>
+</div>
+
+<div id="popup" class="ol-popup">
+    <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+    <div id="popup-content"></div>
+</div>
+<div id="markers"></div>
+<div id="labels"></div>
+
+<script src="projections.js" type="text/javascript"></script>
+<script src="MapObject.js" type="text/javascript"></script>
+<script src="WMSParams.js" type="text/javascript"></script>
+<script src="coordinateline.js" type="text/javascript"></script>
+<script src="mapcircle.js" type="text/javascript"></script>
+<script src="mapview.js" type="text/javascript"></script>
+<!-- replaced by: -->
+<script type="text/javascript">
+    // #projections.js#
+    // #MapObject.js#
+    // #WMSParams.js#
+    // #coordinateline.js#
+    // #mapcircle.js#
+    // #mapview.js#
+
+
+    // no browser context menu, markers and labels handle it separately, for the mapview itself
+    // it must be caught here as ol.Map has no context menu event.
+    document.getElementById('map').oncontextmenu = function (e) {
+        e = e ? e : window.event;
+        getJSMapView().contextmenu(e);
+        if (e.preventDefault) e.preventDefault(); // For non-IE browsers.
+        else return false; // For IE browsers.
+    };
+
+
+</script>
+
+</body>
 </html>

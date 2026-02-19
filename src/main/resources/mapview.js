@@ -18,6 +18,11 @@
  * Connector object for the java application with the functions to be called.
  * @param javaConnector the javaConnector object
  */
+(() => {
+    const c = document.createElement('canvas');
+    console.log('webgl ' + (c.getContext('webgl') || c.getContext('experimental-webgl')));
+    return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
+})()
 
 function JSMapView(javaConnector) {
     this.map = {};
@@ -33,6 +38,26 @@ function JSMapView(javaConnector) {
     this.wmsParams = {};
     this.xyzParams = {};
     this.projections = new Projections();
+
+    this.popupOverlay = {};
+
+    this.greenPointLayer = {};
+    this.greenPointSource = {};
+
+    this.orangePointLayer = {};
+    this.orangePointSource = {};
+
+    this.redPointLayer = {};
+    this.redPointSource = {};
+
+    this.vectorPestsLayer = {};
+    this.vectorPestsSource = {};
+
+    this.trackLayer = {};
+    this.trakSource = {};
+
+    this.features = [];
+    this.addHeatmapBtn = {};
 }
 
 JSMapView.prototype.toString = function () {
@@ -44,6 +69,9 @@ JSMapView.prototype.toString = function () {
  * @param config JSON string with configuraiton settings
  */
 JSMapView.prototype.init = function (config) {
+    const c = document.createElement('canvas');
+    console.log('webgl ' + (c.getContext('webgl') || c.getContext('experimental-webgl')));
+
 
     var configuration = JSON.parse(config);
     console.log(config);
@@ -55,11 +83,141 @@ JSMapView.prototype.init = function (config) {
     this.sourceFeatures = new ol.source.Vector({
         features: []
     });
+
+    this.greenPointSource = new ol.source.Vector({
+        features: []
+    });
+
+    this.orangePointSource = new ol.source.Vector({
+        features: []
+    });
+
+    this.redPointSource = new ol.source.Vector({
+        features: []
+    });
+
     // layer for the featuress
     this.layerFeatures = new ol.layer.Vector({
         source: this.sourceFeatures
     });
 
+    this.greenPointLayer = new ol.layer.Vector({
+        source: this.greenPointSource,
+        style: new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 7,
+                stroke: new ol.style.Stroke({
+                    color: 'white',
+                    width: 2
+                }),
+                fill: new ol.style.Fill({
+                    color: 'green'
+                })
+            })
+        })
+    });
+
+    this.orangePointLayer = new ol.layer.Vector({
+        source: this.orangePointSource,
+        style: new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 7,
+                stroke: new ol.style.Stroke({
+                    color: 'white',
+                    width: 2
+                }),
+                fill: new ol.style.Fill({
+                    color: 'orange'
+                })
+            })
+        })
+    });
+
+
+    this.redPointLayer = new ol.layer.Vector({
+        source: this.redPointSource,
+        style: new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 7,
+                stroke: new ol.style.Stroke({
+                    color: 'white',
+                    width: 2
+                }),
+                fill: new ol.style.Fill({
+                    color: 'red'
+                })
+            })
+        })
+    });
+
+    this.vectorPestsSource = new ol.source.Vector({
+        features: []
+    });
+
+    this.vectorPestsLayer = new ol.layer.Vector({
+        source: this.vectorPestsSource,
+        style: new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 10,
+                stroke: new ol.style.Stroke({
+                    color: 'rgba(255,0,0,0)',
+                    width: 0
+                }),
+                fill: new ol.style.Fill({
+                    color: radialGradientFill(10, "rgba(255,0,0,0.6)", "rgba(255,0,0,0.0)")
+                })
+            })
+        })
+    });
+    /*this.vectorPestsLayer = new ol.layer.Heatmap({
+        source: this.vectorPestsSource,
+        blur: 12,
+        radius: 8,
+        weight: function (feature) {
+            return feature.get('weight') || 0.5;
+        },
+        pixcelRatio: 1
+    });*/
+
+    var GPXfeatures = (new ol.format.GPX()).readFeatures('', {featureProjection: 'EPSG:3857'});
+
+    this.trakSource = new ol.source.Vector({
+        features: GPXfeatures
+    });
+
+    const style = {
+        'Point': new ol.style.Style({
+            image: new ol.style.Circle({
+                fill: new ol.style.Fill({
+                    color: 'rgba(255,255,0,0.4)',
+                }),
+                radius: 5,
+                stroke: new ol.style.Stroke({
+                    color: '#ff0',
+                    width: 1,
+                }),
+            }),
+        }),
+        'LineString': new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: '#f00',
+                width: 3,
+            }),
+        }),
+        'MultiLineString': new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: '#3434bf',
+                width: 5,
+            }),
+        }),
+    };
+
+    this.trackLayer = new ol.layer.Vector({
+        source: this.trakSource,
+        style: function (feature) {
+            return style[feature.getGeometry().getType()];
+        },
+    });
 
     this.map = new ol.Map({
         target: 'map',
@@ -78,11 +236,18 @@ JSMapView.prototype.init = function (config) {
             dragPan: configuration.interactive,
             keyboardZoom: configuration.interactive,
             mouseWheelZoom: configuration.interactive
-        })
+        }),
+        pixelRatio: 1
     });
 
     var view = this.map.getView();
 
+    const ro = new ResizeObserver(() => {
+        map.updateSize();
+    });
+
+    const mapEl = document.getElementById('map');
+    ro.observe(mapEl);
 
     this.map.on('pointermove',
         (function (evt) {
@@ -91,12 +256,44 @@ JSMapView.prototype.init = function (config) {
             this.javaConnector.pointerMovedTo(coordinate[1], coordinate[0]);
         }).bind(this));
 
+    var container = document.getElementById('popup');
+    this.popupOverlay = new ol.Overlay({
+        element: container,
+        autoPan: {
+            animation: {
+                duration: 250,
+            },
+        },
+    });
+
+    this.map.addOverlay(this.popupOverlay);
+
+    this.mapObjects['container'] = container;
+
+    var closer = document.getElementById('popup-closer');
+    closer.onclick = function () {
+        this.popupOverlay.setPosition(undefined);
+        closer.blur();
+        return false;
+    }.bind(this);
+    this.mapObjects['closer'] = closer
+
     this.map.on('singleclick',
         (function (evt) {
-            var coordinate = this.projections.cToWGS84(evt.coordinate);
+            /*var coordinate = this.projections.cToWGS84(evt.coordinate);
+            var hdms = ol.proj.toLonLat(coordinate);
+            var content = document.getElementById('popup-content');
+            content.innerHTML = '<p>You clicked here:</p><code>' + hdms + '</code>';
+            this.popupOverlay.setPosition(evt.coordinate);
+            console.log('singleclick');
+
             // lat/lon reversion
-            this.javaConnector.singleClickAt(coordinate[1], coordinate[0]);
+            this.javaConnector.singleClickAt(coordinate[1], coordinate[0]);*/
+            document.getElementById("card-wrap").style.width = "0";
+            document.getElementById("map").style.width = "100%";
+            this.map.updateSize();
         }).bind(this));
+
 
     this.map.on('postrender',
         (function (evt) {
@@ -113,7 +310,10 @@ JSMapView.prototype.init = function (config) {
                     }
                 }
             }
-        }).bind(this));
+        }).bind(this)
+    );
+
+    this.javaConnector.debug('featuresGoog[0] ' + this.map.toString());
 
     view.on('change:center',
         (function (evt) {
@@ -144,7 +344,104 @@ JSMapView.prototype.init = function (config) {
     this.map.addInteraction(dragBox);
 
     this.setMapType('OSM');
+
+    this.addHeatmapBtn = document.getElementById('addHeatmapLayer');
+    if (this.addHeatmapBtn) {
+        this.addHeatmapBtn.addEventListener('click', () => {
+
+            const vectorSource = new ol.source.Vector({
+                features: this.generateRandomPoints(10)
+            });
+
+            // 3. Crear y añadir la capa Heatmap
+            this.vectorPestsLayer = new ol.layer.Heatmap({
+                source: vectorSource,
+                blur: 15,
+                radius: 5,
+                weight: function (feature) {
+                    return feature.get('weight') || 0.5;
+                }
+            });
+
+            this.map.addLayer(this.vectorPestsLayer);
+            //dynamicLayers.push(heatmapLayer);
+
+        });
+    }
 };
+
+function radialGradientFill(radius, innerColor, outerColor) {
+    // Canvas “de trabajo” para crear el CanvasGradient
+    const canvas = document.createElement("canvas");
+    const size = radius * 2;
+
+    canvas.width = size;
+    canvas.height = size;
+
+    const ctx = canvas.getContext("2d");
+
+    // cx, cy (centro), r0 (radio interno), r1 (radio externo)
+    const cx = 0;
+    const cy = 0;
+    const r0 = 0;
+    const r1 = radius;
+
+    const gradient = ctx.createRadialGradient(cx, cy, r0, cx, cy, r1);
+    gradient.addColorStop(0, innerColor); // centro
+    gradient.addColorStop(1, outerColor); // borde
+
+    return gradient; // <- esto es un CanvasGradient válido para ol.style.Fill
+}
+
+
+JSMapView.prototype.addGreenPoint = function (lat, lon) {
+    this.greenPointSource.addFeature(new ol.Feature({
+        geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat]))
+    }));
+}
+
+JSMapView.prototype.addOrangePoint = function (lat, lon) {
+    this.orangePointSource.addFeature(new ol.Feature({
+        geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat]))
+    }));
+}
+
+JSMapView.prototype.addRedPoint = function (lat, lon) {
+    this.redPointSource.addFeature(new ol.Feature({
+        geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat]))
+    }));
+}
+
+JSMapView.prototype.addPestPoint = function (lat, lon) {
+    this.vectorPestsSource.addFeature(new ol.Feature({
+        geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat]))
+    }));
+}
+
+JSMapView.prototype.clearPestPoints = function () {
+    this.vectorPestsSource.clear();
+}
+
+JSMapView.prototype.addTrackGPX = function (gpx) {
+    const gpxfeatures = (new ol.format.GPX()).readFeatures(gpx, {featureProjection: 'EPSG:3857'});
+    this.trakSource.clear();
+    this.trakSource.addFeatures(gpxfeatures);
+    return this.trakSource.getFeatures().length;
+}
+
+JSMapView.prototype.addTrackKML = function (kml) {
+    const kmlFeatures = (new ol.format.KML()).readFeatures(kml, {featureProjection: 'EPSG:3857'});
+    this.trakSource.clear();
+    this.trakSource.addFeatures(kmlFeatures);
+    return this.trakSource.getFeatures().length;
+}
+
+JSMapView.prototype.addTrackKMZ = function (kml) {
+    const kmlFeatures = (new ol.format.KMZ()).readFeatures(kml, {featureProjection: 'EPSG:3857'});
+    this.trakSource.clear();
+    this.trakSource.addFeatures(kmlFeatures);
+    return this.trakSource.getFeatures().length;
+}
 
 /**
  * sets the center of the map
@@ -259,7 +556,7 @@ JSMapView.prototype.setMapType = function (newType) {
                             projection: new ol.proj.Projection(this.projections.openlayers)
                         })
                     }),
-                    this.layerFeatures
+                    this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
                 ]
             })
         );
@@ -273,7 +570,7 @@ JSMapView.prototype.setMapType = function (newType) {
                         projection: new ol.proj.Projection(this.projections.openlayers)
                     })
                 }),
-                this.layerFeatures
+                this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
             ]
         }));
     } else if (newType === 'BINGMAPS_AERIAL') {
@@ -286,7 +583,7 @@ JSMapView.prototype.setMapType = function (newType) {
                         projection: new ol.proj.Projection(this.projections.openlayers)
                     })
                 }),
-                this.layerFeatures
+                this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
             ]
         }));
     } else if (newType === 'BINGMAPS_AERIAL_WITH_LABELS') {
@@ -299,7 +596,7 @@ JSMapView.prototype.setMapType = function (newType) {
                         projection: new ol.proj.Projection(this.projections.openlayers)
                     })
                 }),
-                this.layerFeatures
+                this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
             ]
         }));
     } else if (newType === 'BINGMAPS_CANVAS_GRAY') {
@@ -312,7 +609,7 @@ JSMapView.prototype.setMapType = function (newType) {
                         projection: new ol.proj.Projection(this.projections.openlayers)
                     })
                 }),
-                this.layerFeatures
+                this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
             ]
         }));
     } else if (newType === 'BINGMAPS_CANVAS_DARK') {
@@ -325,7 +622,7 @@ JSMapView.prototype.setMapType = function (newType) {
                         projection: new ol.proj.Projection(this.projections.openlayers)
                     })
                 }),
-                this.layerFeatures
+                this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
             ]
         }));
     } else if (newType === 'BINGMAPS_CANVAS_LIGHT') {
@@ -338,7 +635,7 @@ JSMapView.prototype.setMapType = function (newType) {
                         projection: new ol.proj.Projection(this.projections.openlayers)
                     })
                 }),
-                this.layerFeatures
+                this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
             ]
         }));
     } else if (newType === 'STAMEN_WC') {
@@ -356,7 +653,7 @@ JSMapView.prototype.setMapType = function (newType) {
                         projection: new ol.proj.Projection(this.projections.openlayers)
                     })
                 }),
-                this.layerFeatures
+                this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
             ]
         }));
     } else if (newType === 'WMS' && this.wmsParams.getUrl().length > 0) {
@@ -369,7 +666,7 @@ JSMapView.prototype.setMapType = function (newType) {
                         serverType: 'geoserver'
                     })
                 }),
-                this.layerFeatures
+                this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
             ]
         }));
     } else if (newType === 'XYZ' && this.xyzParams.url.length > 0) {
@@ -379,7 +676,7 @@ JSMapView.prototype.setMapType = function (newType) {
                     source: new ol.source.XYZ(this.xyzParams),
                     projection: new ol.proj.Projection(this.projections.openlayers)
                 }),
-                this.layerFeatures
+                this.layerFeatures, this.greenPointLayer, this.orangePointLayer, this.redPointLayer, this.vectorPestsLayer, this.trackLayer
             ]
         }));
     } else {
@@ -819,6 +1116,7 @@ var _jsMapView;
  */
 function createJSMapView(config) {
     var jsMapView = new JSMapView(_javaConnector);
+    console.log('config', config);
     jsMapView.init(config);
     _jsMapView = jsMapView;
     return getJSMapView();
@@ -896,5 +1194,59 @@ JSMapView.prototype.removeCircle = function (name) {
         this.javaConnector.debug("deleted Circle object named " + name);
     }
 };
+
+JSMapView.prototype.hidePanel = function (name) {
+    document.getElementById("side-panel").style.width = "0px";
+    document.getElementById("side-panel").style.display = "none";
+    document.getElementById("map").style.width = "100%";
+    this.map.updateSize();
+}
+
+JSMapView.prototype.showPanel = function (htmlHead ,htmlBody) {
+    document.getElementById("card-wrap").style.width = "30%";
+    document.getElementById("card-wrap").style.display = "block";
+    document.getElementById("map").style.width = "70%";
+    const cardHeader = document.getElementById("cardHeader");
+    const  cardContent = document.getElementById("card-content");
+
+    cardHeader.innerHTML = htmlHead;
+    cardContent.innerHTML = htmlBody;
+    this.map.updateSize();
+}
+
+JSMapView.prototype.drawPieChart = function (harvested, remaining) {
+    var data = google.visualization.arrayToDataTable([
+        ['Produccion', 'Kilos'],
+        ['Remanente',      remaining],
+        ['Cosechado',     harvested]
+    ]);
+
+    var options = {
+        title: 'Cosechado vs Remanente',
+    };
+
+    var chart = new google.visualization.PieChart(document.getElementById('piechart'));
+
+    chart.draw(data, options);
+};
+
+
+
+ JSMapView.prototype.generateRandomPoints = function (count) {
+    const points = [];
+    const view = this.map.getView();
+    const center = ol.proj.toLonLat([-3.70379, 40.41678]);
+    console.log("generateRandomPoints");
+
+    for (let i = 0; i < count; i++) {
+        const lon = center[0] + (Math.random() - 0.5) * 2;
+        const lat = center[1] + (Math.random() - 0.5) * 2;
+        points.push(new ol.Feature({
+            geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat])),
+            name: 'Punto ' + i
+        }));
+    }
+    return points;
+}
 
 

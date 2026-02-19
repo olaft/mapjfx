@@ -41,6 +41,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedList;
 
@@ -319,9 +321,29 @@ public class TestApp extends Application {
         super.stop();
     }
 
+    private Path resolveAndEnsureCacheDir() {
+        // Evita rutas relativas tipo "tmpdata/cache" que dependen del working directory.
+        // Usa una ruta estable por usuario.
+        final String userHome = System.getProperty("user.home");
+        final Path dir = FileSystems.getDefault().getPath(userHome, ".mapjfx", "cache").toAbsolutePath();
+
+        try {
+            Files.createDirectories(dir);
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo crear el directorio de caché: " + dir, e);
+        }
+
+        if (!Files.isDirectory(dir) || !Files.isWritable(dir)) {
+            throw new IllegalStateException("El directorio de caché no es escribible: " + dir);
+        }
+        return dir;
+    }
+
     private void initOfflineCache() {
         final OfflineCache offlineCache = OfflineCache.INSTANCE;
-        offlineCache.setCacheDirectory(FileSystems.getDefault().getPath("tmpdata/cache"));
+        final Path cacheDir = resolveAndEnsureCacheDir();
+        offlineCache.setCacheDirectory(cacheDir);
+
         offlineCache.setActive(true);
         offlineCache.setNoCacheFilters(Collections.singletonList(".*\\.sothawo\\.com/.*"));
 

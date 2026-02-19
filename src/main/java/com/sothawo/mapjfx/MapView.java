@@ -206,6 +206,7 @@ public final class MapView extends Region implements AutoCloseable {
      * initializes the JavaFX properties.
      */
     private void initProperties() {
+        System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
         center = new SimpleObjectProperty<>();
         center.addListener((observable, oldValue, newValue) -> {
             // check if this is the same value that was just reported from the map using object equality
@@ -742,7 +743,7 @@ public final class MapView extends Region implements AutoCloseable {
      * @throws java.lang.NullPointerException
      *     if marker is null
      */
-    public MapView addMarker(final Marker marker) {
+    public MapView addMarker(final Marker<?> marker) {
         if (!getInitialized()) {
             if (logger.isWarnEnabled()) {
                 logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
@@ -892,6 +893,8 @@ public final class MapView extends Region implements AutoCloseable {
                 }
             });
 
+            webEngine.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+
             // watch for load changes
             webEngine.getLoadWorker().stateProperty().addListener((observable, oldValue, newValue) -> {
                     if (logger.isTraceEnabled()) {
@@ -902,8 +905,52 @@ public final class MapView extends Region implements AutoCloseable {
                         final JSObject window = (JSObject) webEngine.executeScript("window");
                         window.setMember("_javaConnector", javaConnector);
 
+                        webEngine.executeScript(
+                                "if (!window.WebGLRenderingContext) {" +
+                                        "   console.log('WebGL no soportado');" +
+                                        "}" +
+                                        "// Polyfill para Float32Array si es necesario"
+                        );
+
+                        boolean hasWebGL = (Boolean) webEngine.executeScript(
+                                "!!document.createElement('canvas').getContext('webgl')"
+                        );
+                        System.out.println("WebGL soportado: " + hasWebGL);
+
                         // add JS console.log() redirector
-                        webEngine.executeScript("console.log = function(msg) { _javaConnector.console(msg) }");
+                        webEngine.executeScript(
+                                "(() => {\n" +
+                                        "  const safeToString = (v) => {\n" +
+                                        "    try {\n" +
+                                        "      if (v === undefined) return 'undefined';\n" +
+                                        "      if (v === null) return 'null';\n" +
+                                        "      if (v instanceof Error) return v.stack || v.message || String(v);\n" +
+                                        "      if (typeof v === 'object') return JSON.stringify(v);\n" +
+                                        "      return String(v);\n" +
+                                        "    } catch (e) {\n" +
+                                        "      try { return String(v); } catch (e2) { return '[unprintable]'; }\n" +
+                                        "    }\n" +
+                                        "  };\n" +
+                                        "  const send = (prefix, args) => {\n" +
+                                        "    try {\n" +
+                                        "      const msg = prefix + Array.from(args).map(safeToString).join(' ');\n" +
+                                        "      _javaConnector.console(msg);\n" +
+                                        "    } catch (e) {\n" +
+                                        "      // ignore\n" +
+                                        "    }\n" +
+                                        "  };\n" +
+                                        "  const origLog = console.log.bind(console);\n" +
+                                        "  const origWarn = console.warn.bind(console);\n" +
+                                        "  const origError = console.error.bind(console);\n" +
+                                        "  console.log = function(){ send('JS LOG: ', arguments); return origLog.apply(console, arguments); };\n" +
+                                        "  console.warn = function(){ send('JS WARN: ', arguments); return origWarn.apply(console, arguments); };\n" +
+                                        "  console.error = function(){ send('JS ERROR: ', arguments); return origError.apply(console, arguments); };\n" +
+                                        "  window.onerror = function(message, source, lineno, colno, error) {\n" +
+                                        "    send('JS ERROR: ', [message, '@', source + ':' + lineno + ':' + colno, (error && error.stack) ? error.stack : '']);\n" +
+                                        "    return false;\n" +
+                                        "  };\n" +
+                                        "})();"
+                        );
 
                         // get the Javascript connector object. Even if the html file is loaded, JS may not yet
                         // be ready, so prepare for an exception and retry
@@ -1224,7 +1271,7 @@ public final class MapView extends Region implements AutoCloseable {
      * @throws java.lang.NullPointerException
      *     if marker is null
      */
-    public MapView removeMarker(final Marker marker) {
+    public MapView removeMarker(final Marker<?> marker) {
         if (!getInitialized()) {
             if (logger.isWarnEnabled()) {
                 logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
@@ -1422,6 +1469,7 @@ public final class MapView extends Region implements AutoCloseable {
          *     the message to log
          */
         public void console(String msg) {
+            System.out.println(msg);
             if (logger.isDebugEnabled()) {
                 logger.debug("JS Console: {}", msg);
             }
@@ -1884,6 +1932,106 @@ public final class MapView extends Region implements AutoCloseable {
 
                 mapCircles.remove(id);
             }
+        }
+    }
+
+    public void addGreenPoint(final Coordinate coordinate) {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        } else {
+            jsMapView.call("addGreenPoint", coordinate.getLatitude(), coordinate.getLongitude());
+        }
+    }
+
+    public void addOrangePoint(final Coordinate coordinate) {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        } else {
+            jsMapView.call("addOrangePoint", coordinate.getLatitude(), coordinate.getLongitude());
+        }
+    }
+
+    public void addRedPoint(final Coordinate coordinate) {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        } else {
+            jsMapView.call("addRedPoint", coordinate.getLatitude(), coordinate.getLongitude());
+        }
+    }
+
+    public void addPestPoint(final Coordinate coordinate) {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        } else {
+            jsMapView.call("addPestPoint", coordinate.getLatitude(), coordinate.getLongitude());
+        }
+    }
+
+    public void clearPestPoints() {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        }
+
+        jsMapView.call("clearPestPoints");
+    }
+
+    public void addTrackGPX(String gpx) {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        } else {
+            Object x= jsMapView.call("addTrackGPX", gpx);
+        }
+    }
+
+    public void addTrackKML(String kml) {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        } else {
+            Object x= jsMapView.call("addTrackKML", kml);
+        }
+    }
+
+    public void hidePanel() {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        } else {
+            jsMapView.call("hidePanel", "");
+        }
+    }
+
+    public void showPanel(String htmlHeader, String htmlContent) {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        } else {
+            jsMapView.call("showPanel", htmlHeader, htmlContent);
+        }
+    }
+
+    public void drawPieChart (int harvested, int remaining) {
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        } else {
+            jsMapView.call("drawPieChart", harvested, remaining);
         }
     }
 }
